@@ -22,11 +22,14 @@ extension NSMutableData {
 class VideoUploader : NSObject{
     
     let events=EventManager()
+    var waiting_id:NSMutableArray=[]
     
     override init(){
         
     }
     func uploadVideo(video_path:String, vid:String,server_url:String){
+        
+       // waiting_id.addObject(vid)
         
         print("upload video...")
         
@@ -130,7 +133,7 @@ class VideoUploader : NSObject{
         let path = "/extra2016/\(vid).mp4"
         _session.upload(NSURL(fileURLWithPath: video_path), path: path) {
                 (result, error) -> Void in
-                print("Upload file with result:\(result), error: \(error)")
+                print("Upload \(vid) file with result:\(result), error: \(error)")
             if(error==nil){
                 self.events.trigger("upload_finish", information:vid)
             }

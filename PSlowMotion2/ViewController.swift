@@ -24,7 +24,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     let UPLOAD_URL="upload/action.php"
     
     var startButton, composeButton: UIButton!
-    var messageText:UITextView!
+    var messageText:UILabel!
     
     var isRecording = false
     let cameraEngine = SlowCameraEngine()
@@ -34,6 +34,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     
     let videoComposer = VideoComposer()
     let videoUploader = VideoUploader()
+    let stickerComposer=StickerFrameComposer()
     
     //OSC
     var video_id:String!
@@ -47,10 +48,12 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     var isProcessing=false
     var record_path:String!
     
+    var beginTime:CFAbsoluteTime!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        self.beginTime=CFAbsoluteTimeGetCurrent()
         
         // Do any additional setup after loading the view.
         cameraEngine.startup()
@@ -68,15 +71,32 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             print("record finish...")
             self.record_path=info as! String
         })
-        self.videoComposer.events.listenTo("ending_finish",action: {(info: Any?) in
-            print("ending finish...")
+//        self.videoComposer.events.listenTo("ending_finish",action: {(info: Any?) in
+//            print("ending finish...")
+//            if(self.video_id==nil){
+//                self.video_id="test"
+//            }
+//            self.videoComposer.combineVideo(self.record_path,sticker_path: info as! String)
+//        })
+        self.stickerComposer.events.listenTo("sticker_finish",action: {(info: Any?) in
+            
+            let process_time=CFAbsoluteTimeGetCurrent()
+            let t_=NSString(format: "%.2f",(process_time-self.beginTime))
+            print("compose finish... after \(t_)")
+            self.messageText.text?.appendContentsOf("\nsticker finish \(t_)")
+            
             if(self.video_id==nil){
                 self.video_id="test"
             }
             self.videoComposer.combineVideo(self.record_path,sticker_path: info as! String)
         })
         self.videoComposer.events.listenTo("compose_finish",action: {(info: Any?) in
-            print("compose finish...")
+            
+            let process_time=CFAbsoluteTimeGetCurrent()
+            let t_=NSString(format: "%.2f",(process_time-self.beginTime))
+            print("compose finish... after \(t_)")
+            self.messageText.text?.appendContentsOf("\ncompose finish \(t_)")
+            
             if(self.video_id==nil){
                 self.video_id="test"
             }
@@ -84,7 +104,12 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             self.videoUploader.uploadVideoFTP(info as! String, vid: self.video_id, server_url: self.FTP_URL)
         })
         self.videoUploader.events.listenTo("upload_finish",action: {(info: Any?) in
-            print("upload finish...")
+            
+            let process_time=CFAbsoluteTimeGetCurrent()
+            let t_=NSString(format: "%.2f",(process_time-self.beginTime))
+            print("upload finish...\(t_)")
+            self.messageText.text?.appendContentsOf("\nupload finish \(t_)")
+           
             if((info) != nil){
                 self.sendResultMessage(info as! String)
                 self.isProcessing=false
@@ -131,25 +156,33 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     }
     
     func setupUI(){
-        startButton = UIButton(frame: CGRectMake(20, view.bounds.height - 70, 60 ,50))
+        startButton = UIButton(frame: CGRectMake(20, 20, 60 ,50))
         startButton.backgroundColor = UIColor.redColor()
         startButton.layer.masksToBounds = true
         startButton.setTitle("start", forState: .Normal)
-        startButton.layer.cornerRadius = 20.0
+        startButton.layer.cornerRadius = 0.0
         startButton.addTarget(self, action: #selector(onClickStartButton(_:)), forControlEvents: .TouchUpInside)
         
-        composeButton = UIButton(frame: CGRectMake(100, view.bounds.height - 70, 120, 50))
+        composeButton = UIButton(frame: CGRectMake(100, 20, 80, 50))
         composeButton.backgroundColor = UIColor.grayColor()
         composeButton.layer.masksToBounds = true
         composeButton.setTitle("process", forState: .Normal)
-        composeButton.layer.cornerRadius = 20.0
+        composeButton.layer.cornerRadius = 0.0
         composeButton.addTarget(self, action: #selector(onClickComposeButton(_:)), forControlEvents: .TouchUpInside)
         
         
-        messageText=UITextView(frame: CGRectMake(20, 20, view.bounds.width, view.bounds.height-130))
+        
+        //messageText=UITextView(frame: CGRectMake(20, 20, view.bounds.width, view.bounds.height-130))
+        messageText=UILabel(frame: CGRectMake(200,20,400,200))
+        messageText.lineBreakMode = .ByWordWrapping
+        messageText.numberOfLines=0
+        messageText.text=getWiFiAddress()
+        
         
         view.addSubview(startButton)
         view.addSubview(composeButton)
+        view.addSubview(messageText)
+        
         
         //view.addSubview(messageText)
         
@@ -192,10 +225,30 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     func onClickComposeButton(sender: UIButton){
         if(!isProcessing){
             changeButtonColor(composeButton, color: UIColor.redColor())
-            let img_=downloadImage("\(self.SERVER_URL)test2.png")
-            self.videoComposer.composeEndingPart(img_)
+            
+            var now = NSDate()
+            var formatter = NSDateFormatter()
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            self.video_id="test\(formatter.stringFromDate(now))"
+            
+            startCompose("test2")
         }
     }
+    func startCompose(vid_:String){
+        
+        
+        self.messageText.text?.appendContentsOf("\nstart compose...\(vid_)")
+        
+        
+        let img_=downloadImage("\(self.SERVER_URL)\(vid_).png")
+        //self.videoComposer.composeEndingPart(img_)
+        
+        self.beginTime=CFAbsoluteTimeGetCurrent()
+        
+        self.stickerComposer.composeEndingPart(img_)
+        
+    }
+    
     func stopRecord(){
         if cameraEngine.isCapturing {
             cameraEngine.stop()
@@ -213,17 +266,17 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         
         print("Received '\(message)'")
         if(message.addressPattern=="/video_start"){
-            video_id=message.arguments[0] as! String
+            self.video_id=message.arguments[0] as! String
+            
+            self.messageText.text=self.getWiFiAddress()
+            self.messageText.text?.appendContentsOf("Start Record \(self.video_id)")
             startRecord()
+        
         }else if(message.addressPattern=="/compose_start"){
             if(message.arguments[0] as! String != video_id){
                 print("Incompatible ID: \(message.arguments[0] as! String) -> \(video_id)");
             }
-            
-            //download sticker
-            //let img_=downloadImage(message.arguments[1] as! String)
-            let img_=downloadImage("\(self.SERVER_URL)st_\(video_id).png")
-            self.videoComposer.composeEndingPart(img_)
+            startCompose("st_\(video_id)")
         }
         
 //        let addressPattern = message.addressPattern
@@ -247,6 +300,9 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         var xml_=NSXMLParser.init(contentsOfURL: NSURL.init(fileURLWithPath: path!))
         xml_!.delegate=self
         xml_!.parse()
+        
+        stickerComposer.loadEndingFrames()
+        
     }
     func parserDidStartDocument(parser: NSXMLParser) {
         print("Start parsing XML!");
@@ -256,8 +312,11 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         if(elementName=="FRAME"){
             let posx=attributeDict["X"] as! NSString
             let posy=attributeDict["Y"] as! NSString
-            videoComposer.arr_pos_x.addObject(623+posx.doubleValue*0.6667)
-            videoComposer.arr_pos_y.addObject(720-(336+posy.doubleValue*0.6667))
+            stickerComposer.arr_pos_x.addObject(623+posx.doubleValue*0.6667-251)
+            stickerComposer.arr_pos_y.addObject((336+posy.doubleValue*0.6667-502))
+            
+//            videoComposer.arr_pos_x.addObject(623+posx.doubleValue*0.6667)
+//            videoComposer.arr_pos_y.addObject(720-(336+posy.doubleValue*0.6667))
             
         }
     }
@@ -266,6 +325,44 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     }
     func parserDidEndDocument(parser: NSXMLParser){
         print("End parsing XML!");
+    }
+    
+    
+    func getWiFiAddress() -> String? {
+        var address : String?
+        
+        // Get list of all interfaces on the local machine:
+        var ifaddr : UnsafeMutablePointer<ifaddrs> = nil
+        if getifaddrs(&ifaddr) == 0 {
+            
+            // For each interface ...
+            var ptr = ifaddr
+            while ptr != nil {
+                defer { ptr = ptr.memory.ifa_next }
+                
+                let interface = ptr.memory
+                
+                // Check for IPv4 or IPv6 interface:
+                let addrFamily = interface.ifa_addr.memory.sa_family
+                if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
+                    
+                    // Check interface name:
+                    if let name = String.fromCString(interface.ifa_name) where name == "en0" {
+                        
+                        // Convert interface address to a human readable string:
+                        var addr = interface.ifa_addr.memory
+                        var hostname = [CChar](count: Int(NI_MAXHOST), repeatedValue: 0)
+                        getnameinfo(&addr, socklen_t(interface.ifa_addr.memory.sa_len),
+                                    &hostname, socklen_t(hostname.count),
+                                    nil, socklen_t(0), NI_NUMERICHOST)
+                        address = String.fromCString(hostname)
+                    }
+                }
+            }
+            freeifaddrs(ifaddr)
+        }
+        
+        return address
     }
     
 }

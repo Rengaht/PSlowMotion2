@@ -26,8 +26,9 @@ class VideoComposer : NSObject{
     var ending_track:AVAssetTrack!
     var bgm_track:AVAssetTrack!
     
-    var arr_pos_x:NSMutableArray!
-    var arr_pos_y:NSMutableArray!
+    
+    var arr_pos_x:NSMutableArray=[]
+    var arr_pos_y:NSMutableArray=[]
     
     
     private var combinePath: String {
@@ -61,8 +62,6 @@ class VideoComposer : NSObject{
         bgm_asset=AVURLAsset(URL:NSURL.fileURLWithPath(bgmPath!),options:nil)
         bgm_track=bgm_asset.tracksWithMediaType(AVMediaTypeAudio)[0]
         
-        arr_pos_x=NSMutableArray()
-        arr_pos_y=NSMutableArray()
         
     }
     
@@ -230,6 +229,7 @@ class VideoComposer : NSObject{
         for i in 0...mkeyframe{
             keyframe.addObject(NSNumber(double: Double(i)*1.0/Double(mkeyframe)))
             tf.addObject(linear_anim)
+            
         }
 //        move_animation_x.keyTimes=[0,0.15634,0.528,0.7561,1]
 //        move_animation_x.values=[623,623,502,693,636]
@@ -241,8 +241,8 @@ class VideoComposer : NSObject{
         move_animation_x.values=arr_pos_x as! [NSNumber]
         move_animation_x.timingFunctions=NSArray(array: tf) as! [CAMediaTimingFunction]
        
-        move_animation_x.duration=1.1667
-        move_animation_x.beginTime=3.5
+        move_animation_x.duration=1.33333
+        move_animation_x.beginTime=3.3333
         move_animation_x.removedOnCompletion=false
         move_animation_x.fillMode=kCAFillModeForwards
         
@@ -256,28 +256,17 @@ class VideoComposer : NSObject{
         move_animation_y.values=arr_pos_y as! [NSNumber]
         move_animation_y.timingFunctions=NSArray(array: tf) as! [CAMediaTimingFunction]
         
-        move_animation_y.duration=1.1667
-        move_animation_y.beginTime=3.5
+        move_animation_y.duration=1.3333
+        move_animation_y.beginTime=3.3333
         move_animation_y.removedOnCompletion=false
         move_animation_y.fillMode=kCAFillModeForwards
         
-        
-//        let rotate_animation=CAKeyframeAnimation(keyPath: "transform.rotation")
-//        //move_animation_y.keyTimes=[0,0.14634,0.5122,0.7561,1]
-//        rotate_animation.keyTimes=[0,0.15634,0.528,0.7561,1]
-//        let ang=M_PI*Double(0.3)
-//        rotate_animation.values=[0,0,-ang,ang,0]
-//        rotate_animation.timingFunctions=[linear_anim,linear_anim,linear_anim,linear_anim]
-//        rotate_animation.duration=1.3667
-//        rotate_animation.beginTime=3.3
-//        rotate_animation.removedOnCompletion=false
-//        rotate_animation.fillMode=kCAFillModeForwards
         
         
         let opa_animation=CABasicAnimation(keyPath: "opacity")
         opa_animation.fromValue=0.0
         opa_animation.toValue=1.0
-        opa_animation.beginTime=3.5
+        opa_animation.beginTime=3.3333
         opa_animation.duration=0.1
         opa_animation.removedOnCompletion=false
         opa_animation.fillMode=kCAFillModeForwards
@@ -360,6 +349,5 @@ class VideoComposer : NSObject{
         })
         
     }
-    
     
 }
