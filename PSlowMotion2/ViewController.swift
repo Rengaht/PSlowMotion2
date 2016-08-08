@@ -13,10 +13,10 @@ import NetworkExtension
 class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecognizerDelegate,NSXMLParserDelegate{
     
     
-    let MAINUI_OSC_IP="192.168.1.224"
+    let MAINUI_OSC_IP="192.168.1.148"
     let MAINUI_OSC_PORT=UInt16(12888)
     
-    let QRCODE_OSC_IP="192.168.1.224"
+    let QRCODE_OSC_IP="192.168.1.148"
     let QRCODE_OSC_PORT=UInt16(12999)
     
     let SERVER_URL="http://mmlab.bremennetwork.tw/extra2016/"
@@ -49,6 +49,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     var record_path:String!
     
     var beginTime:CFAbsoluteTime!
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -116,7 +117,16 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             }
             self.changeButtonColor(self.composeButton, color: UIColor.grayColor())
         })
-        
+        self.videoUploader.events.listenTo("upload_fail",action: {(info: Any?) in
+            
+            let process_time=CFAbsoluteTimeGetCurrent()
+            let t_=NSString(format: "%.2f",(process_time-self.beginTime))
+            print("upload fail...\(t_)")
+            self.messageText.text?.appendContentsOf("\nupload fail \(t_)")
+            
+            
+            self.changeButtonColor(self.composeButton, color: UIColor.grayColor())
+        })
         
         // osc receive
         osc_server=F53OSCServer.init()
@@ -269,7 +279,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             self.video_id=message.arguments[0] as! String
             
             self.messageText.text=self.getWiFiAddress()
-            self.messageText.text?.appendContentsOf("Start Record \(self.video_id)")
+            self.messageText.text?.appendContentsOf("\nStart Record \(self.video_id)")
             startRecord()
         
         }else if(message.addressPattern=="/compose_start"){

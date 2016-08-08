@@ -58,7 +58,7 @@ class VideoComposer : NSObject{
         ending_asset=AVURLAsset(URL:NSURL.fileURLWithPath(endPath!),options:nil)
         ending_track=ending_asset.tracksWithMediaType(AVMediaTypeVideo)[0]
         
-        let bgmPath = NSBundle.mainBundle().pathForResource("full_v3", ofType: "mp3")
+        let bgmPath = NSBundle.mainBundle().pathForResource("film_sound", ofType: "mp3")
         bgm_asset=AVURLAsset(URL:NSURL.fileURLWithPath(bgmPath!),options:nil)
         bgm_track=bgm_asset.tracksWithMediaType(AVMediaTypeAudio)[0]
         
