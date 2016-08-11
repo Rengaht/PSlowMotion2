@@ -50,16 +50,18 @@ class VideoUploader : NSObject{
         //request.setValue("gzip, deflate", forHTTPHeaderField: "Accept-Encoding")
         
         let bodyData = createBodyWithParameters(param, filePathKey: "file", paths: [video_path], boundary: boundary)
-        print("upload size= \(bodyData.length/100000) MB");
+        print("upload size= \(bodyData.length/1000000) MB");
 
         request.HTTPBody=bodyData
         request.HTTPShouldHandleCookies=false
+        request.timeoutInterval=6000
         
         let queue:NSOperationQueue = NSOperationQueue()
 
         NSURLConnection.sendAsynchronousRequest(request, queue: queue, completionHandler:
             {(response: NSURLResponse?,data: NSData?,error: NSError?) -> Void in
                         do{
+                            print(NSString.init(data: data!, encoding:NSUTF8StringEncoding))
                             if let jsonResult = try NSJSONSerialization.JSONObjectWithData(data!, options: []) as? NSDictionary{
                                 print("ASynchronous\(jsonResult)")
             
@@ -90,6 +92,7 @@ class VideoUploader : NSObject{
                 body.appendString("\(value)")
                 
             }
+            body.appendString("\r\n");
         }
         
         if paths != nil {

@@ -35,9 +35,9 @@ class StickerFrameComposer : NSObject{
     
     func loadEndingFrames(){
         arr_frame=NSMutableArray.init(capacity:150)
-        for i in 0...150{
+        for i in 0...299{
             let name_=String.init(format:"%03d",i)
-            let path_ = NSBundle.mainBundle().pathForResource("test2\(name_)", ofType: "png",inDirectory: "end_seq")
+            let path_ = NSBundle.mainBundle().pathForResource("extra_part2\(name_)", ofType: "png",inDirectory: "end_seq")
             let data = NSData(contentsOfURL:NSURL(fileURLWithPath:path_!))
             arr_frame.addObject(UIImage(data:data!)!)
         }
@@ -50,6 +50,8 @@ class StickerFrameComposer : NSObject{
     }
     
     func createOverlayImage(stickerImage:UIImage,backImage:UIImage,drawRect:CGRect,angle:Double,alpha:Double)->UIImage{
+        
+        if alpha==0 { return backImage }
         
 //        //create alpha image
 //        UIGraphicsBeginImageContextWithOptions(drawRect.size, false, 0.0)
@@ -127,7 +129,7 @@ class StickerFrameComposer : NSObject{
         var frameCount = 0
         
         // -- Add images to video
-        let numImages = 150
+        let numImages = arr_frame.count
         writerInput.requestMediaDataWhenReadyOnQueue(mediaQueue, usingBlock: { () -> Void in
             // Append unadded images to video but only while input ready
             while (writerInput.readyForMoreMediaData && frameCount < numImages) {
@@ -138,14 +140,19 @@ class StickerFrameComposer : NSObject{
                 var ang_=0.0
                 var a_=1.0
                 
-                if frameCount<100 {
+                if frameCount<99 {
                     fr=0
                     a_=0
-                }else if frameCount>140 {
+                }else if frameCount>139 {
                     fr=40-1
-                }
-                else{
-                    fr=frameCount-100
+                    if frameCount>222 {
+                        a_=0
+                    }else if frameCount>209 {
+                        a_=1.0-(Double(frameCount)-209.0)/13.0
+                    }
+                    
+                }else{
+                    fr=frameCount-99
                     if fr>30 { ang_=20.0-20.0*(Double(fr)-30.0)/10.0 }
                     else if fr>20 { ang_=50.0*(Double(fr)-20.0)/10.0-30.0 }
                     else if fr>5 { ang_=0-30*(Double(fr)-5.0)/15.0 }
@@ -197,6 +204,11 @@ class StickerFrameComposer : NSObject{
                 AVVideoCodecKey  : AVVideoCodecH264,
                 AVVideoWidthKey  : size.width,
                 AVVideoHeightKey : size.height,
+                AVVideoCompressionPropertiesKey:
+                    [
+                        //AVVideoAverageBitRateKey: 2500000,
+                        AVVideoProfileLevelKey: AVVideoProfileLevelH264MainAutoLevel
+                    ]
                 ]
             
             // Add video input to writer

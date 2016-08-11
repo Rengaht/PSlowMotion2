@@ -9,11 +9,14 @@
 import Foundation
 import AVFoundation
 import AssetsLibrary
+import UIKit
+
 
 class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate{
     
     let INPUT_FPS:Int32=240
     let OUTPUT_FPS:Int32=30
+    let REQUIRED_FRAME:Int64=480
     
     let events=EventManager()
     
@@ -22,9 +25,11 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         var fileWriter: AVAssetWriter!
         var videoInput: AVAssetWriterInput!
         var audioInput: AVAssetWriterInput!
+        var pixelAdapter:AVAssetWriterInputPixelBufferAdaptor!
         
         
         init(fileUrl:NSURL!, height:Int, width:Int, channels:Int, samples:Float64){
+            
             fileWriter = try? AVAssetWriter(URL: fileUrl, fileType: AVFileTypeMPEG4)
             
             let videoOutputSettings: Dictionary<String, AnyObject> = [
@@ -34,8 +39,16 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
             ]
             videoInput = AVAssetWriterInput(mediaType: AVMediaTypeVideo, outputSettings: videoOutputSettings)
             videoInput.expectsMediaDataInRealTime = true
-            videoInput.transform = CGAffineTransformMakeRotation(CGFloat(M_PI)/2)
+            //videoInput.transform = CGAffineTransformMakeRotation(CGFloat(M_PI))
             fileWriter.addInput(videoInput)
+            
+//            let sourceBufferAttributes : [String : AnyObject] = [
+//                kCVPixelBufferPixelFormatTypeKey as String : Int(kCVPixelFormatType_32ARGB),
+//                kCVPixelBufferWidthKey as String : width,
+//                kCVPixelBufferHeightKey as String :height,
+//                ]
+//            pixelAdapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: videoInput, sourcePixelBufferAttributes: sourceBufferAttributes)
+            
             
 //            let audioOutputSettings: Dictionary<String, AnyObject> = [
 //                AVFormatIDKey : Int(kAudioFormatMPEG4AAC),
@@ -46,7 +59,10 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
 //            audioInput = AVAssetWriterInput(mediaType: AVMediaTypeAudio, outputSettings: audioOutputSettings)
 //            audioInput.expectsMediaDataInRealTime = true
 //            fileWriter.addInput(audioInput)
+            
         }
+        
+        
         
         func write(sample: CMSampleBufferRef, isVideo: Bool){
             if CMSampleBufferDataIsReady(sample) {
@@ -73,8 +89,12 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         }
         
         func finish(callback: Void -> Void){
+            videoInput.markAsFinished()
             fileWriter.finishWritingWithCompletionHandler(callback)
         }
+       
+        
+        
     }
     
     let captureSession = AVCaptureSession()
@@ -140,14 +160,14 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         videoDataOutput.setSampleBufferDelegate(self, queue: recordingQueue)
         videoDataOutput.alwaysDiscardsLateVideoFrames = true
         videoDataOutput.videoSettings = [
-            kCVPixelBufferPixelFormatTypeKey : Int(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
+            kCVPixelBufferPixelFormatTypeKey : Int(kCVPixelFormatType_32BGRA)
         ]
         
         
         captureSession.addOutput(videoDataOutput)
         
         let conn=videoDataOutput.connectionWithMediaType(AVMediaTypeVideo)
-        conn.videoOrientation=AVCaptureVideoOrientation.LandscapeLeft
+        conn.videoOrientation=AVCaptureVideoOrientation.LandscapeRight
         
         
         height = videoDataOutput.videoSettings["Height"] as! Int!
@@ -217,16 +237,39 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
             setupWriter()
         }
     }
+    func zoomIn(){
+        do{
+            try videoDevice.lockForConfiguration()
+                let desiredZoomFactor = videoDevice.videoZoomFactor + 0.2;
+                videoDevice.videoZoomFactor = max(1.0, min(desiredZoomFactor, videoDevice.activeFormat.videoMaxZoomFactor));
+            videoDevice.unlockForConfiguration()
+        }catch{
+            print(error)
+        }
+    }
+    func zoomOut(){
+        do{
+            try videoDevice.lockForConfiguration()
+            let desiredZoomFactor = videoDevice.videoZoomFactor - 0.2;
+            videoDevice.videoZoomFactor = max(desiredZoomFactor,1.0);
+            videoDevice.unlockForConfiguration()
+        }catch{
+            print(error)
+        }
+    }
     
     func stop(){
         if isCapturing{
             isCapturing = false
             print("total frame= \(self.currentFrameCount) drop=\(self.dropFrameCount)")
             
+            
+            
             dispatch_async(dispatch_get_main_queue(), { () -> Void in
                 //print("in")
                 self.videoWriter!.finish { () -> Void in
-                    print("Recording finished.")
+                    print("video writer finished.")
+                    
                     self.videoWriter = nil
                     
                     //self.videoComposer.combineVideo(self.recordPath, output_path:self.combinePath)
@@ -249,9 +292,7 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
 //        let isVideo = captureOutput is AVCaptureVideoDataOutput
 //            
 //        if videoWriter == nil && !isVideo {
-//            
 //        }
-//        
 //        if !isVideo {
 //            return
 //        }
@@ -260,12 +301,19 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         currentFrameCount += 1
         
         var buffer = sampleBuffer
+        
+        
+        
+        
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         
         buffer = setTimeStamp(sampleBuffer, newTime: CMTimeAdd(timestamp, CMTimeMake(1 * currentFrameCount, self.OUTPUT_FPS)))
 
-        //print("write")
+        //print("write \(currentFrameCount)")
         videoWriter?.write(buffer, isVideo: true)
+        
+        if currentFrameCount==self.REQUIRED_FRAME { self.stop() }
+        
     }
     func captureOutput(captureOutput: AVCaptureOutput!, didDropSampleBuffer sampleBuffer: CMSampleBuffer!, fromConnection connection: AVCaptureConnection!) {
         dropFrameCount+=1
@@ -308,6 +356,7 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
             }
             
             print("setup writer")
+            currentFrameCount=0
             videoWriter = SlowVideoWriter(
                 fileUrl: filePathUrl,
                 height: height, width: width,
@@ -331,6 +380,9 @@ class SlowCameraEngine : NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         }catch{
             print("set focus error: \(error)")
         }
+        
     }
+    
+    
     
 }

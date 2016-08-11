@@ -13,10 +13,10 @@ import NetworkExtension
 class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecognizerDelegate,NSXMLParserDelegate{
     
     
-    let MAINUI_OSC_IP="192.168.1.148"
+    let MAINUI_OSC_IP="192.168.1.140"
     let MAINUI_OSC_PORT=UInt16(12888)
     
-    let QRCODE_OSC_IP="192.168.1.148"
+    let QRCODE_OSC_IP="192.168.1.140"
     let QRCODE_OSC_PORT=UInt16(12999)
     
     let SERVER_URL="http://mmlab.bremennetwork.tw/extra2016/"
@@ -25,6 +25,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     
     var startButton, composeButton: UIButton!
     var messageText:UILabel!
+    var zoomInButton,zoomOutButton:UIButton!
     
     var isRecording = false
     let cameraEngine = SlowCameraEngine()
@@ -35,6 +36,8 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     let videoComposer = VideoComposer()
     let videoUploader = VideoUploader()
     let stickerComposer=StickerFrameComposer()
+    let overlayCompose=OverlayComposer()
+    
     
     //OSC
     var video_id:String!
@@ -47,6 +50,8 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     
     var isProcessing=false
     var record_path:String!
+    var sticker_path:String!
+    var overlay_path:String!
     
     var beginTime:CFAbsoluteTime!
     
@@ -61,7 +66,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         let videoLayer = AVCaptureVideoPreviewLayer(session: cameraEngine.captureSession)
         videoLayer.frame = view.bounds
         videoLayer.videoGravity = AVLayerVideoGravityResizeAspectFill
-        videoLayer.connection.videoOrientation=AVCaptureVideoOrientation.LandscapeLeft
+        videoLayer.connection.videoOrientation=AVCaptureVideoOrientation.LandscapeRight
         
         view.layer.addSublayer(videoLayer)
         
@@ -71,6 +76,21 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         self.cameraEngine.events.listenTo("record_finish",action: {(info: Any?) in
             print("record finish...")
             self.record_path=info as! String
+            //self.overlayCompose.composeOverlayVideo(self.record_path)
+            self.changeButtonColor(self.startButton, color: UIColor.redColor())
+            
+        })
+        self.overlayCompose.events.listenTo("overlay_finish",action: {(info: Any?) in
+            
+            let process_time=CFAbsoluteTimeGetCurrent()
+            let t_=NSString(format: "%.2f",(process_time-self.beginTime))
+            print("overlay finish... after \(t_)")
+            
+            self.overlay_path=info as! String
+            
+            self.messageText.text?.appendContentsOf("\noverlay finish \(t_)")
+            self.videoComposer.combineVideo(self.overlay_path,sticker_path:self.sticker_path)
+            
         })
 //        self.videoComposer.events.listenTo("ending_finish",action: {(info: Any?) in
 //            print("ending finish...")
@@ -83,14 +103,18 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             
             let process_time=CFAbsoluteTimeGetCurrent()
             let t_=NSString(format: "%.2f",(process_time-self.beginTime))
-            print("compose finish... after \(t_)")
+            print("sticker finish... after \(t_)")
             self.messageText.text?.appendContentsOf("\nsticker finish \(t_)")
             
             if(self.video_id==nil){
                 self.video_id="test"
             }
-            self.videoComposer.combineVideo(self.record_path,sticker_path: info as! String)
+            self.sticker_path=info as! String
+            self.overlayCompose.composeOverlayVideo(self.record_path)
+            
+            
         })
+        
         self.videoComposer.events.listenTo("compose_finish",action: {(info: Any?) in
             
             let process_time=CFAbsoluteTimeGetCurrent()
@@ -98,11 +122,12 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             print("compose finish... after \(t_)")
             self.messageText.text?.appendContentsOf("\ncompose finish \(t_)")
             
+            
             if(self.video_id==nil){
                 self.video_id="test"
             }
-            //self.videoUploader.uploadVideo(info as! String, vid: self.video_id, server_url: String(self.SERVER_URL+self.UPLOAD_URL))
-            self.videoUploader.uploadVideoFTP(info as! String, vid: self.video_id, server_url: self.FTP_URL)
+            self.videoUploader.uploadVideo(info as! String, vid: self.video_id, server_url: String(self.SERVER_URL+self.UPLOAD_URL))
+            //self.videoUploader.uploadVideoFTP(info as! String, vid: self.video_id, server_url: self.FTP_URL)
         })
         self.videoUploader.events.listenTo("upload_finish",action: {(info: Any?) in
             
@@ -111,6 +136,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             print("upload finish...\(t_)")
             self.messageText.text?.appendContentsOf("\nupload finish \(t_)")
            
+        
             if((info) != nil){
                 self.sendResultMessage(info as! String)
                 self.isProcessing=false
@@ -166,14 +192,18 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     }
     
     func setupUI(){
-        startButton = UIButton(frame: CGRectMake(20, 20, 60 ,50))
+        
+        let screenSize: CGRect = UIScreen.mainScreen().bounds
+        
+        
+        startButton = UIButton(frame: CGRectMake(screenSize.width-100, 20, 60 ,50))
         startButton.backgroundColor = UIColor.redColor()
         startButton.layer.masksToBounds = true
         startButton.setTitle("start", forState: .Normal)
         startButton.layer.cornerRadius = 0.0
         startButton.addTarget(self, action: #selector(onClickStartButton(_:)), forControlEvents: .TouchUpInside)
         
-        composeButton = UIButton(frame: CGRectMake(100, 20, 80, 50))
+        composeButton = UIButton(frame: CGRectMake(screenSize.width-200, 20, 80, 50))
         composeButton.backgroundColor = UIColor.grayColor()
         composeButton.layer.masksToBounds = true
         composeButton.setTitle("process", forState: .Normal)
@@ -183,16 +213,32 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         
         
         //messageText=UITextView(frame: CGRectMake(20, 20, view.bounds.width, view.bounds.height-130))
-        messageText=UILabel(frame: CGRectMake(200,20,400,200))
+        messageText=UILabel(frame: CGRectMake(screenSize.width/2,100,screenSize.width/2-80,200))
         messageText.lineBreakMode = .ByWordWrapping
         messageText.numberOfLines=0
+        messageText.textColor=UIColor.redColor()
         messageText.text=getWiFiAddress()
+        
+        
+        zoomInButton=UIButton(frame: CGRectMake(screenSize.width-80,100,50,50))
+        zoomInButton.backgroundColor=UIColor.blueColor()
+        zoomInButton.setTitle("+", forState: .Normal)
+        zoomInButton.layer.cornerRadius=25
+        zoomInButton.addTarget(self, action: #selector(onZoomInButton(_:)), forControlEvents: .TouchUpInside)
+        
+        zoomOutButton=UIButton(frame: CGRectMake(screenSize.width-80,160,50,50))
+        zoomOutButton.backgroundColor=UIColor.blueColor()
+        zoomOutButton.setTitle("-", forState: .Normal)
+        zoomOutButton.layer.cornerRadius=25
+        zoomOutButton.addTarget(self, action: #selector(onZoomOutButton(_:)), forControlEvents: .TouchUpInside)
+
         
         
         view.addSubview(startButton)
         view.addSubview(composeButton)
         view.addSubview(messageText)
-        
+        view.addSubview(zoomInButton)
+        view.addSubview(zoomOutButton)
         
         //view.addSubview(messageText)
         
@@ -228,7 +274,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             changeButtonColor(startButton, color: UIColor.grayColor())
             //changeButtonColor(stopButton, color: UIColor.redColor())
             
-            self.timer=NSTimer.scheduledTimerWithTimeInterval(self.RECORD_TIME, target: self, selector: #selector(ViewController.stopRecord), userInfo: nil, repeats: false)
+//            self.timer=NSTimer.scheduledTimerWithTimeInterval(self.RECORD_TIME, target: self, selector: #selector(ViewController.stopRecord), userInfo: nil, repeats: false)
         }
     }
     
@@ -238,15 +284,15 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
             
             var now = NSDate()
             var formatter = NSDateFormatter()
-            formatter.dateFormat = "yyyyMMdd-HHmmss"
-            self.video_id="test\(formatter.stringFromDate(now))"
+            //formatter.dateFormat = "yyyyMMddHHmmss"
+            //self.video_id="test\(formatter.stringFromDate(now))"
             
             startCompose("test2")
         }
     }
     func startCompose(vid_:String){
-        
-        
+                
+            
         self.messageText.text?.appendContentsOf("\nstart compose...\(vid_)")
         
         
@@ -269,6 +315,13 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     
     func changeButtonColor(target: UIButton, color: UIColor){
         target.backgroundColor = color
+    }
+    
+    func onZoomInButton(sender:UIButton){
+        cameraEngine.zoomIn()
+    }
+    func onZoomOutButton(sender:UIButton){
+        cameraEngine.zoomOut()
     }
     
     //@add for F53OSC ############
@@ -297,6 +350,9 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         
         let message = F53OSCMessage(addressPattern: "/video_finish", arguments: [message])
         osc_qrcode_client.sendPacket(message)
+        
+        //osc_client.sendPacket(message)
+        
     }
     
     func downloadImage(url_:String) -> UIImage{
@@ -312,7 +368,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         xml_!.parse()
         
         stickerComposer.loadEndingFrames()
-        
+        overlayCompose.loadOverlayFrames()
     }
     func parserDidStartDocument(parser: NSXMLParser) {
         print("Start parsing XML!");
@@ -339,7 +395,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     
     
     func getWiFiAddress() -> String? {
-        var address : String?
+        var address:String=""
         
         // Get list of all interfaces on the local machine:
         var ifaddr : UnsafeMutablePointer<ifaddrs> = nil
@@ -365,7 +421,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
                         getnameinfo(&addr, socklen_t(interface.ifa_addr.memory.sa_len),
                                     &hostname, socklen_t(hostname.count),
                                     nil, socklen_t(0), NI_NUMERICHOST)
-                        address = String.fromCString(hostname)
+                        address = String.fromCString(hostname)!
                     }
                 }
             }
