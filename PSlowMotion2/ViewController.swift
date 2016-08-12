@@ -13,10 +13,10 @@ import NetworkExtension
 class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecognizerDelegate,NSXMLParserDelegate{
     
     
-    let MAINUI_OSC_IP="192.168.1.140"
+    let MAINUI_OSC_IP="192.168.1.148"
     let MAINUI_OSC_PORT=UInt16(12888)
     
-    let QRCODE_OSC_IP="192.168.1.140"
+    let QRCODE_OSC_IP="192.168.1.148"
     let QRCODE_OSC_PORT=UInt16(12999)
     
     let SERVER_URL="http://mmlab.bremennetwork.tw/extra2016/"
@@ -168,10 +168,10 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         osc_client.host=self.MAINUI_OSC_IP
         osc_client.port=self.MAINUI_OSC_PORT
         
-        osc_qrcode_client=F53OSCClient.init()
-        osc_qrcode_client.host=self.QRCODE_OSC_IP
-        osc_qrcode_client.port=self.QRCODE_OSC_PORT
-        
+//        osc_qrcode_client=F53OSCClient.init()
+//        osc_qrcode_client.host=self.QRCODE_OSC_IP
+//        osc_qrcode_client.port=self.QRCODE_OSC_PORT
+//        
         isProcessing=false
         
     }
@@ -196,14 +196,14 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         let screenSize: CGRect = UIScreen.mainScreen().bounds
         
         
-        startButton = UIButton(frame: CGRectMake(screenSize.width-100, 20, 60 ,50))
+        startButton = UIButton(frame: CGRectMake(100, 20, 60 ,50))
         startButton.backgroundColor = UIColor.redColor()
         startButton.layer.masksToBounds = true
         startButton.setTitle("start", forState: .Normal)
         startButton.layer.cornerRadius = 0.0
         startButton.addTarget(self, action: #selector(onClickStartButton(_:)), forControlEvents: .TouchUpInside)
         
-        composeButton = UIButton(frame: CGRectMake(screenSize.width-200, 20, 80, 50))
+        composeButton = UIButton(frame: CGRectMake(180, 20, 80, 50))
         composeButton.backgroundColor = UIColor.grayColor()
         composeButton.layer.masksToBounds = true
         composeButton.setTitle("process", forState: .Normal)
@@ -213,7 +213,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         
         
         //messageText=UITextView(frame: CGRectMake(20, 20, view.bounds.width, view.bounds.height-130))
-        messageText=UILabel(frame: CGRectMake(screenSize.width/2,100,screenSize.width/2-80,200))
+        messageText=UILabel(frame: CGRectMake(screenSize.width/2,100,screenSize.width/2-80,screenSize.height-100))
         messageText.lineBreakMode = .ByWordWrapping
         messageText.numberOfLines=0
         messageText.textColor=UIColor.redColor()
@@ -269,6 +269,10 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         startRecord()
     }
     func startRecord(){
+        
+        self.messageText.text=self.getWiFiAddress()
+        self.messageText.text?.appendContentsOf("\nStart Record \(self.video_id)")
+        
         if !cameraEngine.isCapturing {
             cameraEngine.start()
             changeButtonColor(startButton, color: UIColor.grayColor())
@@ -331,8 +335,6 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         if(message.addressPattern=="/video_start"){
             self.video_id=message.arguments[0] as! String
             
-            self.messageText.text=self.getWiFiAddress()
-            self.messageText.text?.appendContentsOf("\nStart Record \(self.video_id)")
             startRecord()
         
         }else if(message.addressPattern=="/compose_start"){
@@ -349,9 +351,9 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
     func sendResultMessage(message:String){
         
         let message = F53OSCMessage(addressPattern: "/video_finish", arguments: [message])
-        osc_qrcode_client.sendPacket(message)
+        //osc_qrcode_client.sendPacket(message)
         
-        //osc_client.sendPacket(message)
+        osc_client.sendPacket(message)
         
     }
     
@@ -368,7 +370,7 @@ class ViewController: UIViewController,F53OSCPacketDestination,UIGestureRecogniz
         xml_!.parse()
         
         stickerComposer.loadEndingFrames()
-        overlayCompose.loadOverlayFrames()
+        //overlayCompose.loadOverlayFrames()
     }
     func parserDidStartDocument(parser: NSXMLParser) {
         print("Start parsing XML!");

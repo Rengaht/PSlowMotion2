@@ -51,25 +51,26 @@ class OverlayComposer : NSObject{
         var filteredImage:UIImage!
         autoreleasepool{
        
-            let ciBackImage=CIImage(image: backImage)
-            let ciOverlayImage=CIImage(image: overlayImage)
+            var ciBackImage=CIImage(image: backImage)
+            var ciOverlayImage=CIImage(image: overlayImage)
         
             let outputImage=ciBackImage?.imageByApplyingFilter("CIScreenBlendMode", withInputParameters:[
                 "inputBackgroundImage":ciBackImage!,
                 "inputImage":ciOverlayImage!
             ])
+            ciBackImage=nil
+            ciOverlayImage=nil
         
             let newSize = CGSizeMake(1280,720) // set this to what you need
             UIGraphicsBeginImageContextWithOptions(newSize, false, 0.0)
             UIImage(CIImage: outputImage!).drawInRect(CGRectMake(0, 0, newSize.width, newSize.height))
-        
+            
             filteredImage=UIGraphicsGetImageFromCurrentImageContext()
             UIGraphicsEndImageContext()
-      
         }
         
         return filteredImage
-            
+        
     
         
     }
@@ -138,6 +139,10 @@ class OverlayComposer : NSObject{
             return
         }
         
+        
+        video_reader.startReading()
+        
+        
         // -- Create queue for <requestMediaDataWhenReadyOnQueue>
         let mediaQueue = dispatch_queue_create("mediaInputQueue", nil)
         
@@ -148,73 +153,13 @@ class OverlayComposer : NSObject{
         // -- Add images to video
         //let numImages = 150
         writerInput.requestMediaDataWhenReadyOnQueue(mediaQueue, usingBlock: { () -> Void in
-            // Append unadded images to video but only while input ready
-            if (writerInput.readyForMoreMediaData){
-                
-                if video_reader.startReading() {
-                
-                    var videoframe:UIImage!
-                    while(video_reader.status==AVAssetReaderStatus.Reading) {
-                        
-                        autoreleasepool{
-                            
-                            var sample:CMSampleBuffer!
-                            
-                            let lastFrameTime = CMTimeMake(Int64(frameCount), videoFPS)
-                            let presentationTime = frameCount == 0 ? lastFrameTime : CMTimeAdd(lastFrameTime, frameDuration)
-                            
-                            
-                            do{
-                                if(video_reader.status==AVAssetReaderStatus.Reading) {
-                                    sample=track_output.copyNextSampleBuffer()
-                                }
-                                
-                                if sample==nil{
-                                    print("nil sample buffer!")
-                                }else{
-                                    
-                                    
-                                    videoframe=self.imageFromSampleBuffer(sample!)
-                            
-                                    let overImage=self.createOverlayImage(self.arr_frame[frameCount] as! UIImage, backImage:videoframe)
-                            
-                                    if !self.appendPixelBufferForImageAtURL(overImage, pixelBufferAdaptor: pixelBufferAdaptor, presentationTime: presentationTime) {
-                                        print("Error converting images to video: AVAssetWriterInputPixelBufferAdapter failed to append pixel buffer")
-                                        return
-                                    }
-                            
-                                    frameCount += 1
-                                }
-                            }catch{
-                                print(error)
-                            }
-                        
-                        }
-                    }
-                    
-                    while(frameCount<self.num_frame){
-                        
-                        let lastFrameTime = CMTimeMake(Int64(frameCount), videoFPS)
-                        let presentationTime = frameCount == 0 ? lastFrameTime : CMTimeAdd(lastFrameTime, frameDuration)
-                        
-                        let overImage=self.createOverlayImage(self.arr_frame[frameCount] as! UIImage, backImage:videoframe)
-                        
-                        if !self.appendPixelBufferForImageAtURL(overImage, pixelBufferAdaptor: pixelBufferAdaptor, presentationTime: presentationTime) {
-                            print("Error converting images to video: AVAssetWriterInputPixelBufferAdapter failed to append pixel buffer")
-                            return
-                        }
-                        
-                        frameCount += 1
-                    }
-                    
-                    
-                }
-                
-                
             
             
-                // No more images to add? End video.
-                if (video_reader.status==AVAssetReaderStatus.Completed) {
+            var videoframe:UIImage!
+            
+            while(writerInput.readyForMoreMediaData){
+                
+                if(frameCount>=self.num_frame){
                     writerInput.markAsFinished()
                     assetWriter.finishWritingWithCompletionHandler {
                         if (assetWriter.error != nil) {
@@ -222,10 +167,79 @@ class OverlayComposer : NSObject{
                         } else {
                             print("Converted images to movie @ \(self.outputPath) mfr=\(frameCount)")
                             self.events.trigger("overlay_finish", information: self.outputPath)
-                           // self.saveVideoToLibrary(NSURL(fileURLWithPath: self.outputPath))
+                            // self.saveVideoToLibrary(NSURL(fileURLWithPath: self.outputPath))
                         }
                     }
-                }
+                    
+                }else{
+                
+                    
+                    switch(video_reader.status){
+                        case AVAssetReaderStatus.Reading:
+                            autoreleasepool{
+                                
+                                var sample:CMSampleBuffer?
+                                
+                                let lastFrameTime = CMTimeMake(Int64(frameCount), videoFPS)
+                                let presentationTime = frameCount == 0 ? lastFrameTime : CMTimeAdd(lastFrameTime, frameDuration)
+                                
+                                sample=track_output.copyNextSampleBuffer()
+                                
+                                if sample==nil {
+                                    print("nil sample buffer!")
+                                }else{
+                        
+                                    videoframe=self.imageFromSampleBuffer(sample!)
+                                    
+                                    let name_=String.init(format:"%05d",frameCount)
+                                    let path_ = NSBundle.mainBundle().pathForResource("slow motion effect_\(name_)", ofType: "png",inDirectory: "effect")
+                                    let data = NSData(contentsOfURL:NSURL(fileURLWithPath:path_!))
+                                    let filterImage=UIImage(data: data!)
+                                    let overImage=self.createOverlayImage(filterImage!, backImage:videoframe)
+                                    
+                                    //let overImage=self.createOverlayImage(self.arr_frame[frameCount] as! UIImage, backImage:videoframe)
+                                    
+                                    if !self.appendPixelBufferForImageAtURL(overImage, pixelBufferAdaptor: pixelBufferAdaptor, presentationTime: presentationTime) {
+                                        print("Error converting images to video: AVAssetWriterInputPixelBufferAdapter failed to append pixel buffer")
+                                        return
+                                    }
+                                    
+                                    frameCount += 1
+                                }
+                            }
+                            
+                                break;
+                        case AVAssetReaderStatus.Completed:
+                            
+                                let lastFrameTime = CMTimeMake(Int64(frameCount), videoFPS)
+                                let presentationTime = frameCount == 0 ? lastFrameTime : CMTimeAdd(lastFrameTime, frameDuration)
+                                
+                                let name_=String.init(format:"%05d",frameCount)
+                                let path_ = NSBundle.mainBundle().pathForResource("slow motion effect_\(name_)", ofType: "png",inDirectory: "effect")
+                                let data = NSData(contentsOfURL:NSURL(fileURLWithPath:path_!))
+                                let filterImage=UIImage(data: data!)
+                                let overImage=self.createOverlayImage(filterImage!, backImage:videoframe)
+                                
+                                //let overImage=self.createOverlayImage(self.arr_frame[frameCount] as! UIImage, backImage:videoframe)
+                                
+                                if !self.appendPixelBufferForImageAtURL(overImage, pixelBufferAdaptor: pixelBufferAdaptor, presentationTime: presentationTime) {
+                                    print("Error converting images to video: AVAssetWriterInputPixelBufferAdapter failed to append pixel buffer")
+                                    return
+                                }
+                                
+                                frameCount += 1
+                            
+                                
+                                break;
+                        case AVAssetReaderStatus.Failed:
+                            assetWriter.cancelWriting()
+                            break;
+                        default:
+                            break;
+                    }
+                    
+                    }
+                
                 
             }
         })
@@ -334,25 +348,26 @@ class OverlayComposer : NSObject{
     func imageFromSampleBuffer(sample: CMSampleBuffer)->UIImage{
         
         var image:UIImage!
-        
-        if let imageBufferRef = CMSampleBufferGetImageBuffer(sample){
-       
-            CVPixelBufferLockBaseAddress(imageBufferRef, 0);
-        
-            let baseAddress = CVPixelBufferGetBaseAddress(imageBufferRef)
-            let bytePerRow = CVPixelBufferGetBytesPerRow(imageBufferRef)
-            let width = CVPixelBufferGetWidth(imageBufferRef)
-            let height = CVPixelBufferGetHeight(imageBufferRef)
-        
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-        
-            let context = CGBitmapContextCreate(baseAddress, width, height, 8, bytePerRow, colorSpace, (CGImageAlphaInfo.PremultipliedFirst.rawValue))
-        
-            let cgImageRef = CGBitmapContextCreateImage(context)
-            image = UIImage(CGImage: cgImageRef!)
+        autoreleasepool{
+            if let imageBufferRef = CMSampleBufferGetImageBuffer(sample){
+           
+                CVPixelBufferLockBaseAddress(imageBufferRef, 0);
             
-            CVPixelBufferUnlockBaseAddress(imageBufferRef, 0);
+                let baseAddress = CVPixelBufferGetBaseAddress(imageBufferRef)
+                let bytePerRow = CVPixelBufferGetBytesPerRow(imageBufferRef)
+                let width = CVPixelBufferGetWidth(imageBufferRef)
+                let height = CVPixelBufferGetHeight(imageBufferRef)
+            
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+            
+                let context = CGBitmapContextCreate(baseAddress, width, height, 8, bytePerRow, colorSpace, (CGImageAlphaInfo.PremultipliedFirst.rawValue))
+            
+                let cgImageRef = CGBitmapContextCreateImage(context)
+                image = UIImage(CGImage: cgImageRef!)
+                
+                CVPixelBufferUnlockBaseAddress(imageBufferRef, 0);
 
+            }
         }
         return image
         
